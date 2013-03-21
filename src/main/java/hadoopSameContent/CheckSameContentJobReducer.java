@@ -12,6 +12,7 @@ public class CheckSameContentJobReducer extends Reducer<Text, Text, Text, Text> 
     @Override
     public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
 	Map<String, Integer> count = new HashMap<String, Integer>();
+	context.getCounter(HadoopCountersEnum.PROCESSED_LINES).increment(1);
 	for (Text val : values) {
 	    if (count.containsKey(val.toString())) {
 		count.put(val.toString(), count.get(val.toString()) + 1);
@@ -32,10 +33,14 @@ public class CheckSameContentJobReducer extends Reducer<Text, Text, Text, Text> 
 		} else {
 		    context.getCounter(HadoopCountersEnum.ERROR_LINES).increment(1);
 		    context.write(key, new Text(result));
+		    return;
 		}
 	    }
 	}
 
-	context.getCounter(HadoopCountersEnum.PROCESSED_LINES).increment(1);
+	if (!(context.getJobName().endsWith(":" + String.valueOf(count.size())))) {
+	    context.getCounter(HadoopCountersEnum.ERROR_LINES).increment(1);
+	    context.write(key, new Text(result));
+	}
     }
 }
