@@ -17,13 +17,13 @@ public class CheckSameContentJob {
 	Job job = new Job();
 	job.setJarByClass(CheckSameContentJob.class);
 	job.setJobName("Test Content Similarity");
-	// FileInputFormat.addInputPath(job, new Path(args[0]));
-	// FileInputFormat.addInputPath(job, new Path(args[1]));
-	FileInputFormat.addInputPath(job, new Path("/tmp/events1.log"));
-	FileInputFormat.addInputPath(job, new Path("/tmp/events2.log"));
-	FileOutputFormat.setOutputPath(job, new Path("/tmp/hadoopOut"));
+	FileInputFormat.addInputPath(job, new Path(args[0]));
+	FileInputFormat.addInputPath(job, new Path(args[1]));
+	// FileInputFormat.addInputPath(job, new Path("/tmp/events1.log"));
+	// FileInputFormat.addInputPath(job, new Path("/tmp/events2.log"));
+	// FileOutputFormat.setOutputPath(job, new Path("/tmp/hadoopOut"));
 
-	// FileOutputFormat.setOutputPath(job, new Path(args[2]));
+	FileOutputFormat.setOutputPath(job, new Path(args[2]));
 	job.setMapperClass(CheckSameContentJobMapper.class);
 	job.setReducerClass(CheckSameContentJobReducer.class);
 	job.setOutputKeyClass(Text.class);
@@ -47,8 +47,14 @@ public class CheckSameContentJob {
 	b.append(")\\,([0-9]+)\\~(");
 	b.append(files);
 	b.append(")\\,\\2\\~/ && print && print \"\\n\"'");
-
-	System.exit(job.waitForCompletion(true) ? 0 : 1);
+	boolean result = job.waitForCompletion(true);
+	// System.out.println("Correct: " +
+	// String.valueOf(job.getCounters().findCounter(HadoopCountersEnum.CORRECT_LINES).getValue()));
+	// System.out.println("Inorrect: " +
+	// String.valueOf(job.getCounters().findCounter(HadoopCountersEnum.ERROR_LINES).getValue()));
+	// System.out.println("Total: " +
+	// String.valueOf(job.getCounters().findCounter(HadoopCountersEnum.PROCESSED_LINES).getValue()));
+	System.exit(result ? 0 : 1);
     }
 
 }
