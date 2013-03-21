@@ -18,6 +18,14 @@ import org.codehaus.jackson.map.ObjectMapper;
 
 public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, Text> {
 
+    /*
+     * @see org.apache.hadoop.mapreduce.Mapper#map(KEYIN, VALUEIN,
+     * org.apache.hadoop.mapreduce.Mapper.Context)
+     * 
+     * Convert the input to a canonical JSON string if possible Retrieve the
+     * input file this data came from Return the pair {Canonical Data, file
+     * origin}
+     */
     @Override
     public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
 	String hash = (canonicaliseJson(value.toString(), context));
@@ -25,21 +33,36 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
 	context.write(new Text(hash), new Text(filename));
     }
 
+    /*
+     * Process the JSON node provided, loading it into a TreeMap to provide a
+     * consistent order. If nested objects are encountered they will be
+     * processed recursively to independently canonicalize the nested object
+     * contents giving a fully canonical form.
+     * 
+     * TODO: Does not currently handle JSON Array types
+     */
     private String canonicaliseJson(JsonNode rootNode) {
 	TreeMap<String, String> outJson = new TreeMap<String, String>();
 
+	// Iterate over all nodes at this level of the JSON Tree
 	Iterator<Entry<String, JsonNode>> fields = rootNode.getFields();
 	while (fields.hasNext()) {
-
 	    Entry<String, JsonNode> field = fields.next();
 
+	    // Handle recursion cases
 	    if (field.getValue().isObject()) {
+		// Detected a nested object, so make a recursive call to
+		// determine the object's canonical form before storing it as a
+		// string at this level of the tree.
 		outJson.put(field.getKey(), canonicaliseJson(field.getValue()));
 	    } else {
+		// Base case
 		outJson.put(field.getKey(), field.getValue().toString());
 	    }
 	}
 
+	// Iterate over the TreeMap, combining all entries at this node to
+	// calculate a single string to return.
 	StringBuilder retJson = null;
 	for (Entry<String, String> e : outJson.entrySet()) {
 	    if (retJson == null) {
@@ -47,6 +70,8 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
 	    } else {
 		retJson.append(",");
 	    }
+
+	    // Re-add the quotes around the keys and output the pair
 	    retJson.append("\"" + e.getKey() + "\"").append(":").append(e.getValue());
 	}
 	retJson.append("}");
@@ -54,6 +79,18 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
 	return retJson.toString();
     }
 
+    /*
+     * Top level wrapper for:
+     * 
+     * @see canonicaliseJson(JsonNode)
+     * 
+     * Uses the context from the map task to update JSON or TEXT counters
+     * respectively and parse the initial string into a root JSON object if
+     * possible. This allows the main canonicalization function to remain
+     * decoupled from this class for potential re-use. If it can be parsed it
+     * will pass the generated JsonNode object to the canonicaliseJson(JsonNode)
+     * method for canonicalization.
+     */
     private String canonicaliseJson(String from, Context context) throws JsonParseException, IOException {
 	JsonFactory factory = new JsonFactory();
 	ObjectMapper mapper = new ObjectMapper(factory);
@@ -62,7 +99,10 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
 	JsonNode rootNode;
 
 	try {
-	    rootNode = mapper.readTree(jp);
+	    rootNode = mapper.readTree(jp); // Attempt to parse into Json.
+
+	    // If this point is reached then the data is Json so return its
+	    // canonical form.
 	    context.getCounter(HadoopCountersEnum.JSON_LINES).increment(1);
 	    return canonicaliseJson(rootNode);
 	} catch (JsonProcessingException e) {
