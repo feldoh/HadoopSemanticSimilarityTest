@@ -52,7 +52,7 @@ public class CheckSameContentJobReducer extends Reducer<Text, Text, Text, Text> 
 	// not appear in at least one other file. This is done by testing the
 	// cardinality of the map against the number of files which is appended
 	// to the end of the job name for the purpose of this test.
-	if (!(context.getJobName().endsWith(":" + String.valueOf(count.size())))) {
+	if (!(context.getConfiguration().get("numFiles").equals(String.valueOf(count.size())))) {
 	    context.getCounter(HadoopCountersEnum.ERROR_LINES).increment(1);
 	    context.write(key, new Text(result));
 	}

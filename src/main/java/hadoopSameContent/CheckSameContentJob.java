@@ -1,5 +1,6 @@
 package hadoopSameContent;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
@@ -15,9 +16,14 @@ public class CheckSameContentJob {
 	    System.exit(-1);
 	}
 
+	// Configure Job Settings
+	Configuration conf = new Configuration();
+	conf.set("numFiles", String.valueOf(args[0].split(",").length));
+
 	// Initialize job
-	Job job = new Job();
+	Job job = new Job(conf);
 	job.setJarByClass(CheckSameContentJob.class);
+	job.setJobName("Test Content Similarity");
 
 	// Set input and output paths from command-line parameters
 	FileInputFormat.addInputPaths(job, args[0]);
@@ -31,13 +37,7 @@ public class CheckSameContentJob {
 	job.setOutputKeyClass(Text.class);
 	job.setOutputValueClass(Text.class);
 
-	// JobName must end in :# where # is the number of input files
-	// This is to let reducers discover the number of files.
-	job.setJobName("Test Content Similarity:" + FileInputFormat.getInputPaths(job).length);
-
 	// Execute job
-	boolean result = job.waitForCompletion(true);
-	System.exit(result ? 0 : 1);
+	System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
-
 }

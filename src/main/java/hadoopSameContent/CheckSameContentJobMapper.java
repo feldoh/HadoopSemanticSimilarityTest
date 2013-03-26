@@ -1,6 +1,9 @@
 package hadoopSameContent;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.TreeMap;
@@ -28,9 +31,12 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
      */
     @Override
     public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-	String hash = (canonicaliseJson(value.toString(), context));
-	String filename = ((FileSplit) context.getInputSplit()).getPath().toString();
-	context.write(new Text(hash), new Text(filename));
+	String json = (canonicaliseJson(value.toString(), context));
+	if (json != null) {
+	    String filename = ((FileSplit) context.getInputSplit()).getPath().getParent().toString();
+	    // System.err.println(filename);
+	    context.write(new Text(SHA1(json)), new Text(filename));
+	}
     }
 
     /*
@@ -54,9 +60,16 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
 		// Detected a nested object, so make a recursive call to
 		// determine the object's canonical form before storing it as a
 		// string at this level of the tree.
-		outJson.put(field.getKey(), canonicaliseJson(field.getValue()));
+		String nestedObj = canonicaliseJson(field.getValue());
+		if (nestedObj == null) {
+		    return null;
+		}
+		outJson.put(field.getKey(), nestedObj);
 	    } else {
 		// Base case
+		if (field.getKey().equals("event_type") && !((field.getValue().toString().equals("esVDNAAppUserActionEvent")) || (field.getValue().toString().equals("\"esVDNAAppUserActionEvent\"")))) {
+		    return null;
+		}
 		outJson.put(field.getKey(), field.getValue().toString());
 	    }
 	}
@@ -108,7 +121,41 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
 	} catch (JsonProcessingException e) {
 	    // If it could not read a JSON Structure then treat as a string.
 	    context.getCounter(HadoopCountersEnum.TEXT_LINES).increment(1);
-	    return from;
+	    // return from;
+	    return null; // If not JSON ignore the line
 	}
+    }
+
+    public static String SHA1(String text) {
+	MessageDigest md;
+	try {
+	    md = MessageDigest.getInstance("SHA-1");
+	    byte[] sha1hash = new byte[40];
+	    md.update(text.getBytes("iso-8859-1"), 0, text.length());
+	    sha1hash = md.digest();
+	    return convToHex(sha1hash);
+	} catch (NoSuchAlgorithmException e) {
+	    e.printStackTrace();
+	    return text;
+	} catch (UnsupportedEncodingException e) {
+	    e.printStackTrace();
+	    return text;
+	}
+    }
+
+    private static String convToHex(byte[] data) {
+	StringBuilder buf = new StringBuilder();
+	for (int i = 0; i < data.length; i++) {
+	    int halfbyte = (data[i] >>> 4) & 0x0F;
+	    int two_halfs = 0;
+	    do {
+		if ((0 <= halfbyte) && (halfbyte <= 9))
+		    buf.append((char) ('0' + halfbyte));
+		else
+		    buf.append((char) ('a' + (halfbyte - 10)));
+		halfbyte = data[i] & 0x0F;
+	    } while (two_halfs++ < 1);
+	}
+	return buf.toString();
     }
 }
