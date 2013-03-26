@@ -140,6 +140,10 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
 	} catch (UnsupportedEncodingException e) {
 	    e.printStackTrace();
 	    return text;
+	} catch (IllegalArgumentException e) {
+	    e.printStackTrace();
+	    System.err.println(text);
+	    return text;
 	}
     }
 
