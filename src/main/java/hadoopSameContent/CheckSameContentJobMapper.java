@@ -167,7 +167,7 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
         }
 
         public void setTimestamp(String timestamp){
-            this.timestamp = timestamp;
+            this.timestamp = timestamp.split("\\.")[0];
         }
 
         public void setURL(String url){
