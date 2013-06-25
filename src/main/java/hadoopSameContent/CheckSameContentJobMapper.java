@@ -16,7 +16,7 @@ import org.codehaus.jackson.map.ObjectMapper;
 import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 
 public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, Text> {
-
+    
     /*
      * @see org.apache.hadoop.mapreduce.Mapper#map(KEYIN, VALUEIN,
      * org.apache.hadoop.mapreduce.Mapper.Context)
@@ -31,11 +31,15 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
         String filename = ((FileSplit) context.getInputSplit()).getPath().toString();
         
         if (id != null) {
-            if (id.getIdentifyingHash() != null){
-                context.write(new Text(id.getIdentifyingHash()), new Text(value.toString() + "\t" + filename));
-            }else{
-                System.err.println(filename + "\t" + value.toString());
-                context.getCounter(HadoopCountersEnum.INVALID_LINES).increment(1);
+            if(id.hasFoundEventType()){
+                if (id.getIdentifyingHash() != null){
+                    context.write(new Text(id.getIdentifyingHash()), new Text(value.toString() + "\t" + filename));
+                }else{
+                    System.err.println(filename + "\t" + value.toString());
+                    context.getCounter(HadoopCountersEnum.INVALID_LINES).increment(1);
+                }
+            } else {
+                context.getCounter(HadoopCountersEnum.NON_TRACKED_EVENT).increment(1);
             }
         }
     }
@@ -63,10 +67,8 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
                 id = getIdentifyingRequestHashFromJson(field.getValue(), id);
             } else {
                 // Base case
-                if (field.getKey().equals("event_type") && 
-                        !((field.getValue().toString().equals("esVDNAAppUserActionEvent")) 
-                            || (field.getValue().toString().equals("\"esVDNAAppUserActionEvent\"")))) {
-                    return null;
+                if (field.getKey().equals("event_type")){
+                    id.setFoundEventType();
                 } else if (field.getKey().equals("client_ip")){
                     id.setClientIP(field.getValue().toString());
                 } else if (field.getKey().equals("timestamp")){
@@ -108,7 +110,8 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
             // canonical form.
             context.getCounter(HadoopCountersEnum.JSON_LINES).increment(1);
             IdentifyingJsonSubset id = new IdentifyingJsonSubset();
-            return getIdentifyingRequestHashFromJson(rootNode, id);
+            id = getIdentifyingRequestHashFromJson(rootNode, id);
+            return id;
         } catch (JsonProcessingException e) {
             // If it could not read a JSON Structure then treat as a string.
             context.getCounter(HadoopCountersEnum.TEXT_LINES).increment(1);

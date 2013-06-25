@@ -5,12 +5,21 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 public class IdentifyingJsonSubset {
+    private boolean foundEventType = false;
     private String clientIP;
     private String timestamp;
     private String url;
 
     public void setClientIP(String clientIP){
         this.clientIP = clientIP;
+    }
+    
+    public void setFoundEventType(){
+        this.foundEventType = true;
+    }
+    
+    public boolean hasFoundEventType(){
+        return foundEventType;
     }
 
     public void setTimestamp(String timestamp){
