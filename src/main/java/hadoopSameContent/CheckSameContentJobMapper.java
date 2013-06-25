@@ -16,6 +16,7 @@ import org.codehaus.jackson.JsonParseException;
 import org.codehaus.jackson.JsonParser;
 import org.codehaus.jackson.JsonProcessingException;
 import org.codehaus.jackson.map.ObjectMapper;
+import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 
 public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, Text> {
 
@@ -30,12 +31,14 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
     @Override
     public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
         IdentifyingRecordSubset id = (getIdentifyingRequestHashFromJson(value.toString(), context));
-
+        String filename = ((FileSplit) context.getInputSplit()).getPath().toString();
+        
         if (id != null) {
             if (id.getIdentifyingHash() != null){
-                context.write(new Text(id.getIdentifyingHash()), value);
+                context.write(new Text(id.getIdentifyingHash()), new Text(value.toString() + "\t" + filename));
             }else{
-                System.err.println(value.toString());
+                System.err.println(filename + "\t" + value.toString());
+                context.getCounter(HadoopCountersEnum.INVALID_LINES).increment(1);
             }
         }
     }
