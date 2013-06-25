@@ -23,7 +23,7 @@ public class CheckSameContentJob {
 	// Initialize job
 	Job job = new Job(conf);
 	job.setJarByClass(CheckSameContentJob.class);
-	job.setJobName("Test Content Similarity");
+	job.setJobName("Test Event Streams Similarity");
 
 	// Set input and output paths from command-line parameters
 	FileInputFormat.addInputPaths(job, args[0]);
