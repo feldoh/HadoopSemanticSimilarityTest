@@ -30,7 +30,7 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
     @Override
     public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
         IdentifyingRecordSubset id = (getIdentifyingRequestHashFromJson(value.toString(), context));
-        
+
         if (id != null) {
             context.write(new Text(id.getIdentifyingHash()), value);
         }
@@ -45,12 +45,12 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
      * TODO: Does not currently handle JSON Array types
      */
     private IdentifyingRecordSubset getIdentifyingRequestHashFromJson(JsonNode rootNode, IdentifyingRecordSubset id) {
-        
+
         // Iterate over all nodes at this level of the JSON Tree
         Iterator<Entry<String, JsonNode>> fields = rootNode.getFields();
         while (fields.hasNext()) {
             Entry<String, JsonNode> field = fields.next();
-            
+
             // Handle recursion cases
             if (field.getValue().isObject()) {
                 // Detected a nested object, so make a recursive call to
@@ -59,20 +59,18 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
                 id = getIdentifyingRequestHashFromJson(field.getValue(), id);
             } else {
                 // Base case
-                switch(field.getKey().toLowerCase()){
-                    case "event_type":
-                        if (field.getKey().equals("event_type") && !((field.getValue().toString().equals("esVDNAAppUserActionEvent")) || (field.getValue().toString().equals("\"esVDNAAppUserActionEvent\"")))) {
-                            return null;
-                        }
-                        break;
-                    case "client_ip":
-                        id.setClientIP(field.getValue().toString()); break;
-                    case "timestamp":
-                        id.setTimestamp(field.getValue().toString()); break;
-                    case "url":
-                        id.setURL(field.getValue().toString()); break;
-                    default:
-                        continue;
+                if (field.getKey().equals("event_type") && 
+                        !((field.getValue().toString().equals("esVDNAAppUserActionEvent")) 
+                            || (field.getValue().toString().equals("\"esVDNAAppUserActionEvent\"")))) {
+                    return null;
+                } else if (field.getKey().equals("client_ip")){
+                    id.setClientIP(field.getValue().toString());
+                } else if (field.getKey().equals("timestamp")){
+                    id.setTimestamp(field.getValue().toString());
+                } else if (field.getKey().equals("url")){
+                    id.setURL(field.getValue().toString());
+                } else{
+                    continue;
                 }
             }
         }
@@ -151,24 +149,24 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
         }
         return buf.toString();
     }
-    
+
     private class IdentifyingRecordSubset {
         private String clientIP;
         private String timestamp;
         private String url;
-        
+
         public void setClientIP(String clientIP){
             this.clientIP = clientIP;
         }
-        
+
         public void setTimestamp(String timestamp){
             this.timestamp = timestamp;
         }
-        
+
         public void setURL(String url){
             this.url = url;
         }
-        
+
         public String getIdentifyingHash(){
             if (clientIP == null || timestamp == null || url == null){
                 System.err.println("Fields required for hash not present in json, ignoring record");
