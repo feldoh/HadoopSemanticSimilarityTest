@@ -1,9 +1,6 @@
 package hadoopSameContent;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Iterator;
 import java.util.Map.Entry;
 
@@ -30,7 +27,7 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
      */
     @Override
     public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-        IdentifyingRecordSubset id = (getIdentifyingRequestHashFromJson(value.toString(), context));
+        IdentifyingJsonSubset id = (getIdentifyingRequestHashFromJson(value.toString(), context));
         String filename = ((FileSplit) context.getInputSplit()).getPath().toString();
         
         if (id != null) {
@@ -51,7 +48,7 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
      * 
      * TODO: Does not currently handle JSON Array types
      */
-    private IdentifyingRecordSubset getIdentifyingRequestHashFromJson(JsonNode rootNode, IdentifyingRecordSubset id) {
+    private IdentifyingJsonSubset getIdentifyingRequestHashFromJson(JsonNode rootNode, IdentifyingJsonSubset id) {
 
         // Iterate over all nodes at this level of the JSON Tree
         Iterator<Entry<String, JsonNode>> fields = rootNode.getFields();
@@ -97,7 +94,7 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
      * will pass the generated JsonNode object to the canonicaliseJson(JsonNode)
      * method for canonicalization.
      */
-    private IdentifyingRecordSubset getIdentifyingRequestHashFromJson(String from, Context context) throws JsonParseException, IOException {
+    private IdentifyingJsonSubset getIdentifyingRequestHashFromJson(String from, Context context) throws JsonParseException, IOException {
         JsonFactory factory = new JsonFactory();
         ObjectMapper mapper = new ObjectMapper(factory);
         JsonParser jp;
@@ -110,7 +107,7 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
             // If this point is reached then the data is Json so return its
             // canonical form.
             context.getCounter(HadoopCountersEnum.JSON_LINES).increment(1);
-            IdentifyingRecordSubset id = new IdentifyingRecordSubset();
+            IdentifyingJsonSubset id = new IdentifyingJsonSubset();
             return getIdentifyingRequestHashFromJson(rootNode, id);
         } catch (JsonProcessingException e) {
             // If it could not read a JSON Structure then treat as a string.

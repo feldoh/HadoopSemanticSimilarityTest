@@ -8,7 +8,6 @@ public class IdentifyingJsonSubset {
     private String clientIP;
     private String timestamp;
     private String url;
-    private String 
 
     public void setClientIP(String clientIP){
         this.clientIP = clientIP;
