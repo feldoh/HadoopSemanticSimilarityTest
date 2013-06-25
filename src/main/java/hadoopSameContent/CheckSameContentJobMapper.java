@@ -40,7 +40,8 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
         if (json != null) {
             String filename = ((FileSplit) context.getInputSplit()).getPath().getParent().toString();
             // System.err.println(filename);
-            context.write(new Text(SHA1(json)), new Text(filename));
+            //context.write(new Text(SHA1(json)), new Text(filename));
+            context.write(new Text(json), new Text(filename));
         }
     }
 
@@ -96,9 +97,13 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
             // Re-add the quotes around the keys and output the pair
             retJson.append("\"" + e.getKey() + "\"").append(":").append(e.getValue());
         }
-        retJson.append("}");
-
-        return retJson.toString();
+        
+        if (retJson != null){
+            retJson.append("}");
+            return retJson.toString();
+        } else {
+            return "{}";
+        }
     }
 
     /*
