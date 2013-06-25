@@ -6,13 +6,10 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Iterator;
 import java.util.Map.Entry;
-import java.util.TreeMap;
-import java.util.Vector;
 
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.JsonParseException;
@@ -21,10 +18,6 @@ import org.codehaus.jackson.JsonProcessingException;
 import org.codehaus.jackson.map.ObjectMapper;
 
 public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, Text> {
-    private static final Vector<String> blacklist = new Vector<String>() {
-        private static final long serialVersionUID = 1L;
-        {add("sessionId");}
-    };
 
     /*
      * @see org.apache.hadoop.mapreduce.Mapper#map(KEYIN, VALUEIN,
@@ -36,12 +29,10 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
      */
     @Override
     public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-        String json = (canonicaliseJson(value.toString(), context));
-        if (json != null) {
-            String filename = ((FileSplit) context.getInputSplit()).getPath().getParent().toString();
-            // System.err.println(filename);
-            //context.write(new Text(SHA1(json)), new Text(filename));
-            context.write(new Text(json), new Text(filename));
+        IdentifyingRecordSubset id = (getIdentifyingRequestHashFromJson(value.toString(), context));
+        
+        if (id != null) {
+            context.write(new Text(id.getIdentifyingHash()), value);
         }
     }
 
@@ -53,63 +44,46 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
      * 
      * TODO: Does not currently handle JSON Array types
      */
-    private String canonicaliseJson(JsonNode rootNode) {
-        TreeMap<String, String> outJson = new TreeMap<String, String>();
-
+    private IdentifyingRecordSubset getIdentifyingRequestHashFromJson(JsonNode rootNode, IdentifyingRecordSubset id) {
+        
         // Iterate over all nodes at this level of the JSON Tree
         Iterator<Entry<String, JsonNode>> fields = rootNode.getFields();
         while (fields.hasNext()) {
             Entry<String, JsonNode> field = fields.next();
-
-            if (blacklist.contains(field.getKey())){
-                continue;
-            }
             
             // Handle recursion cases
             if (field.getValue().isObject()) {
                 // Detected a nested object, so make a recursive call to
                 // determine the object's canonical form before storing it as a
                 // string at this level of the tree.
-                String nestedObj = canonicaliseJson(field.getValue());
-                if (nestedObj == null) {
-                    return null;
-                }
-                outJson.put(field.getKey(), nestedObj);
+                id = getIdentifyingRequestHashFromJson(field.getValue(), id);
             } else {
                 // Base case
-                if (field.getKey().equals("event_type") && !((field.getValue().toString().equals("esVDNAAppUserActionEvent")) || (field.getValue().toString().equals("\"esVDNAAppUserActionEvent\"")))) {
-                    return null;
+                switch(field.getKey().toLowerCase()){
+                    case "event_type":
+                        if (field.getKey().equals("event_type") && !((field.getValue().toString().equals("esVDNAAppUserActionEvent")) || (field.getValue().toString().equals("\"esVDNAAppUserActionEvent\"")))) {
+                            return null;
+                        }
+                        break;
+                    case "client_ip":
+                        id.setClientIP(field.getValue().toString()); break;
+                    case "timestamp":
+                        id.setTimestamp(field.getValue().toString()); break;
+                    case "url":
+                        id.setURL(field.getValue().toString()); break;
+                    default:
+                        continue;
                 }
-                outJson.put(field.getKey(), field.getValue().toString());
             }
         }
 
-        // Iterate over the TreeMap, combining all entries at this node to
-        // calculate a single string to return.
-        StringBuilder retJson = null;
-        for (Entry<String, String> e : outJson.entrySet()) {
-            if (retJson == null) {
-                retJson = new StringBuilder("{");
-            } else {
-                retJson.append(",");
-            }
-
-            // Re-add the quotes around the keys and output the pair
-            retJson.append("\"" + e.getKey() + "\"").append(":").append(e.getValue());
-        }
-        
-        if (retJson != null){
-            retJson.append("}");
-            return retJson.toString();
-        } else {
-            return "{}";
-        }
+        return id;
     }
 
     /*
      * Top level wrapper for:
      * 
-     * @see canonicaliseJson(JsonNode)
+     * @see getIdentifyingRequestHashFromJson(JsonNode)
      * 
      * Uses the context from the map task to update JSON or TEXT counters
      * respectively and parse the initial string into a root JSON object if
@@ -118,7 +92,7 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
      * will pass the generated JsonNode object to the canonicaliseJson(JsonNode)
      * method for canonicalization.
      */
-    private String canonicaliseJson(String from, Context context) throws JsonParseException, IOException {
+    private IdentifyingRecordSubset getIdentifyingRequestHashFromJson(String from, Context context) throws JsonParseException, IOException {
         JsonFactory factory = new JsonFactory();
         ObjectMapper mapper = new ObjectMapper(factory);
         JsonParser jp;
@@ -131,7 +105,8 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
             // If this point is reached then the data is Json so return its
             // canonical form.
             context.getCounter(HadoopCountersEnum.JSON_LINES).increment(1);
-            return canonicaliseJson(rootNode);
+            IdentifyingRecordSubset id = new IdentifyingRecordSubset();
+            return getIdentifyingRequestHashFromJson(rootNode, id);
         } catch (JsonProcessingException e) {
             // If it could not read a JSON Structure then treat as a string.
             context.getCounter(HadoopCountersEnum.TEXT_LINES).increment(1);
@@ -175,5 +150,32 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
             } while (two_halfs++ < 1);
         }
         return buf.toString();
+    }
+    
+    private class IdentifyingRecordSubset {
+        private String clientIP;
+        private String timestamp;
+        private String url;
+        
+        public void setClientIP(String clientIP){
+            this.clientIP = clientIP;
+        }
+        
+        public void setTimestamp(String timestamp){
+            this.timestamp = timestamp;
+        }
+        
+        public void setURL(String url){
+            this.url = url;
+        }
+        
+        public String getIdentifyingHash(){
+            if (clientIP == null || timestamp == null || url == null){
+                System.err.println("Fields required for hash not present in json, ignoring record");
+                return null;
+            }else{
+                return SHA1(clientIP + timestamp + url);
+            }
+        }
     }
 }
