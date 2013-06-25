@@ -32,7 +32,11 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
         IdentifyingRecordSubset id = (getIdentifyingRequestHashFromJson(value.toString(), context));
 
         if (id != null) {
-            context.write(new Text(id.getIdentifyingHash()), value);
+            if (id.getIdentifyingHash() != null){
+                context.write(new Text(id.getIdentifyingHash()), value);
+            }else{
+                System.err.println(value.toString());
+            }
         }
     }
 
