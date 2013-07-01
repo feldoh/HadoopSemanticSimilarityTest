@@ -110,8 +110,7 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
             // canonical form.
             context.getCounter(HadoopCountersEnum.JSON_LINES).increment(1);
             IdentifyingJsonSubset id = new IdentifyingJsonSubset();
-            id = getIdentifyingRequestHashFromJson(rootNode, id);
-            return id;
+            return getIdentifyingRequestHashFromJson(rootNode, id);
         } catch (JsonProcessingException e) {
             // If it could not read a JSON Structure then treat as a string.
             context.getCounter(HadoopCountersEnum.TEXT_LINES).increment(1);
