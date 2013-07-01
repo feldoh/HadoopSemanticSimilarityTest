@@ -27,15 +27,13 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
      */
     @Override
     public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-        IdentifyingJsonSubset id = (getIdentifyingRequestHashFromJson(value.toString(), context));
-        String filename = ((FileSplit) context.getInputSplit()).getPath().toString();
+        JsonLine id = (getIdentifyingRequestHashFromJson(value.toString(), context));
         
         if (id != null) {
             if(id.hasFoundEventType()){
-                if (id.getIdentifyingHash() != null){
-                    context.write(new Text(id.getIdentifyingHash()), new Text(value.toString() + "\t" + filename));
+                if (id.getIntermediateOutput() != null){
+                    context.write(new Text(id.getVdna_widget_mc()), new Text(id.getIntermediateOutput()));
                 }else{
-                    System.err.println(filename + "\t" + value.toString());
                     context.getCounter(HadoopCountersEnum.INVALID_LINES).increment(1);
                 }
             } else {
@@ -52,7 +50,7 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
      * 
      * TODO: Does not currently handle JSON Array types
      */
-    private IdentifyingJsonSubset getIdentifyingRequestHashFromJson(JsonNode rootNode, IdentifyingJsonSubset id) {
+    private JsonLine getIdentifyingRequestHashFromJson(JsonNode rootNode, JsonLine id) {
 
         // Iterate over all nodes at this level of the JSON Tree
         Iterator<Entry<String, JsonNode>> fields = rootNode.getFields();
@@ -69,12 +67,12 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
                 // Base case
                 if (field.getKey().equals("event_type")){
                     id.setFoundEventType();
-                } else if (field.getKey().equals("client_ip")){
-                    id.setClientIP(field.getValue().toString());
-                } else if (field.getKey().equals("timestamp")){
-                    id.setTimestamp(field.getValue().toString());
-                } else if (field.getKey().equals("url")){
-                    id.setURL(field.getValue().toString());
+                } else if (field.getKey().toLowerCase().equals("vdna_widget_mc")){
+                    if (field.getValue().toString().toLowerCase().length() == 36){
+                        id.setVdna_widget_mc(field.getValue().toString().toLowerCase());
+                    }else{
+                        return null;
+                    }
                 } else{
                     continue;
                 }
@@ -96,7 +94,7 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
      * will pass the generated JsonNode object to the canonicaliseJson(JsonNode)
      * method for canonicalization.
      */
-    private IdentifyingJsonSubset getIdentifyingRequestHashFromJson(String from, Context context) throws JsonParseException, IOException {
+    private JsonLine getIdentifyingRequestHashFromJson(String from, Context context) throws JsonParseException, IOException {
         JsonFactory factory = new JsonFactory();
         ObjectMapper mapper = new ObjectMapper(factory);
         JsonParser jp;
@@ -109,7 +107,7 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
             // If this point is reached then the data is Json so return its
             // canonical form.
             context.getCounter(HadoopCountersEnum.JSON_LINES).increment(1);
-            IdentifyingJsonSubset id = new IdentifyingJsonSubset();
+            JsonLine id = new JsonLine(from, ((FileSplit) context.getInputSplit()).getPath().toString());
             id = getIdentifyingRequestHashFromJson(rootNode, id);
             return id;
         } catch (JsonProcessingException e) {
