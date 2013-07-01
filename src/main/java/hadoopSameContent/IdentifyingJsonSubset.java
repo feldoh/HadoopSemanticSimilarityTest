@@ -29,7 +29,7 @@ public class IdentifyingJsonSubset {
     public void setURL(String url){
         this.url = url;
     }
-
+    
     public String getIdentifyingHash(){
         if (clientIP == null || timestamp == null || url == null){
             System.err.println("Fields required for hash not present in json, ignoring record");
