@@ -39,6 +39,8 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
             } else {
                 context.getCounter(HadoopCountersEnum.NON_TRACKED_EVENT).increment(1);
             }
+        }else{
+            context.getCounter(HadoopCountersEnum.IGNORED_LINE).increment(1);
         }
     }
 
@@ -68,9 +70,12 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
                 if (field.getKey().equals("event_type")){
                     id.setFoundEventType();
                 } else if (field.getKey().toLowerCase().equals("vdna_widget_mc")){
-                    if (field.getValue().toString().toLowerCase().length() == 36){
+                    if (field.getValue().toString().length() > 20){
                         id.setVdna_widget_mc(field.getValue().toString().toLowerCase());
                     }else{
+                        if (!(field.getValue().equals("\"0\""))){
+                            System.out.println(field.getValue().toString().toLowerCase() + "\t" + field.getValue().toString().length());
+                        }
                         return null;
                     }
                 } else{
@@ -109,6 +114,9 @@ public class CheckSameContentJobMapper extends Mapper<LongWritable, Text, Text, 
             context.getCounter(HadoopCountersEnum.JSON_LINES).increment(1);
             JsonLine id = new JsonLine(from, ((FileSplit) context.getInputSplit()).getPath().toString());
             id = getIdentifyingRequestHashFromJson(rootNode, id);
+            if (id == null){
+                context.getCounter(HadoopCountersEnum.OPT_OUT_LINES).increment(1);
+            }
             return id;
         } catch (JsonProcessingException e) {
             // If it could not read a JSON Structure then treat as a string.
